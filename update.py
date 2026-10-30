@@ -48,6 +48,8 @@ def daily():
 def main():
     rows, meta = daily()
     now_utc = datetime.now(timezone.utc)
+    if os.environ.get("DASH_NOW"):                                   # 시험용: 시각을 바꿔 월말 전환을 확인
+        now_utc = datetime.strptime(os.environ["DASH_NOW"], "%Y-%m-%dT%H:%M").replace(tzinfo=timezone.utc)
     try:
         from zoneinfo import ZoneInfo
         et = now_utc.astimezone(ZoneInfo("America/New_York")).replace(tzinfo=None)
