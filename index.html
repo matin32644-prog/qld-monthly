@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<meta name="referrer" content="no-referrer">
+<title>QLD 모으기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* 한 달에 한 번 보는 화면: 맨 위 «이번에 살 것», 그 아래 기준선 막대, 월별 막대, 지난 신호, 다시 계산한 검증, 규칙 */
+:root {
+  --bg: #f3f5f1; --paper: #ffffff; --ink: #1d2420; --ink2: #5a655e; --ink3: #8c968f; --line: #dde3dc; --soft: #eaefe8;
+  --leaf: #2f7a52; --t1: #d9a23a; --t2: #d0682e; --t3: #b83a3a; --up: #2f7a52; --down: #b84a3a;
+  --sans: "Gowun Dodum", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root {
+  --bg: #111613; --paper: #181f1b; --ink: #e7ece8; --ink2: #9ca8a0; --ink3: #6e7a72; --line: #29322d; --soft: #202925;
+  --leaf: #5cc28c; --t1: #e8b85a; --t2: #ec8a55; --t3: #ec6b6b; --up: #5cc28c; --down: #ec7a6b; color-scheme: dark; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 16px; line-height: 1.6; }
+.wrap { max-width: 720px; margin: 0 auto; padding-block: 20px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 16px; }
+h1 { font-size: 26px; margin: 0; }
+h2 { font-size: 18px; margin: 0 0 8px; }
+.fresh { color: var(--ink2); font-size: 13.5px; margin: 2px 0 0; }
+.card { background: var(--paper); border: 1px solid var(--line); border-radius: 16px; padding: 16px; min-width: 0; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.hero .lbl { color: var(--ink2); font-size: 14px; }
+.hero .amt { font: 600 40px var(--mono); line-height: 1.15; margin: 6px 0 2px; }
+.hero .amt small { font: 400 18px var(--sans); color: var(--ink2); margin-left: 4px; }
+.hero .why { font-size: 15px; }
+.split { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 12px; }
+.split div { background: var(--soft); border-radius: 10px; padding: 8px 10px; }
+.split b { display: block; font: 600 18px var(--mono); }
+.split span { font-size: 13px; color: var(--ink2); }
+.pill { display: inline-block; font-size: 13px; border-radius: 999px; padding: 1px 10px; color: #fff; vertical-align: middle; }
+.pill.t0 { background: var(--leaf); } .pill.t1 { background: var(--t1); color: #2a1d00; } .pill.t2 { background: var(--t2); } .pill.t3 { background: var(--t3); }
+.trig { display: grid; gap: 6px; margin-top: 12px; }
+.trig div { display: grid; grid-template-columns: 70px 1fr auto; gap: 8px; align-items: center; font-size: 14.5px; }
+svg { display: block; width: 100%; height: auto; max-width: 100%; }
+.tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+.tabs button { font: 14px var(--sans); color: var(--ink); background: var(--soft); border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; cursor: pointer; }
+.tabs button[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+button:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+.tip { font-size: 13px; color: var(--ink2); min-height: 1.5em; margin-top: 4px; }
+.list { display: grid; gap: 4px; max-height: 360px; overflow-y: auto; }
+.list div { display: grid; grid-template-columns: 82px 1fr auto; gap: 8px; align-items: center; padding: 6px 4px; border-bottom: 1px solid var(--line); font-size: 14.5px; }
+.note { color: var(--ink2); font-size: 14px; margin: 8px 0 0; }
+ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.foot { color: var(--ink3); font-size: 12.5px; }
+.err { color: var(--down); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>QLD 모으기</h1>
+    <p class="fresh" id="fresh">자료 불러오는 중…</p>
+  </header>
+
+  <section class="card hero" id="hero"></section>
+
+  <section class="card" id="gaugeCard">
+    <h2 id="gTitle">이번 달 지금까지</h2>
+    <svg id="gauge" viewBox="0 0 1000 170" role="img" aria-label="이번 달 등락과 추가 매수 기준선"></svg>
+    <div class="trig" id="trig"></div>
+    <p class="note" id="gNote"></p>
+  </section>
+
+  <section class="card">
+    <h2>달마다 등락 (지난달 종가 대비)</h2>
+    <div class="tabs" id="tabs"><button type="button" data-n="24" aria-pressed="true">최근 2년</button><button type="button" data-n="0" aria-pressed="false">2006년부터</button></div>
+    <svg id="bars" viewBox="0 0 1000 300" role="img" aria-label="월별 등락 막대"></svg>
+    <div class="tip" id="btip">막대를 누르면 그 달 숫자가 나와요. 노란·주황·빨간 막대가 다음 달 추가 매수 신호예요</div>
+  </section>
+
+  <section class="card">
+    <h2>추가 매수가 나간 달</h2>
+    <p class="note" style="margin-top:0" id="sigNote"></p>
+    <div class="list" id="sigs"></div>
+  </section>
+
+  <section class="card">
+    <h2>해마다 여유자금이 나간 돈</h2>
+    <svg id="years" viewBox="0 0 1000 220" role="img" aria-label="연도별 추가 매수 합계"></svg>
+    <p class="note" id="yNote"></p>
+  </section>
+
+  <section class="card">
+    <h2>검증 다시 계산 (QLD 실제 가격)</h2>
+    <svg id="bt" viewBox="0 0 1000 300" role="img" aria-label="시작 연도별 규칙 효과"></svg>
+    <div class="tip" id="bttip"></div>
+    <ul id="btText"></ul>
+  </section>
+
+  <section class="card">
+    <h2>규칙 두 개</h2>
+    <ul>
+      <li><b>매달 1일 30만 원</b>어치 QLD를 산다. 조건 없이 무조건</li>
+      <li><b>지난달이 −13% 넘게 빠졌으면</b> 여유자금에서 더 산다: −13~−20% → +100만 · −20~−30% → +200만 · −30% 이하 → +300만</li>
+    </ul>
+    <h2 style="margin-top:14px">하면 안 되는 것</h2>
+    <ul>
+      <li>조건을 «살지 말지»에 쓰기(빠진 달에만 사고 나머지는 쉬기). 기다리는 돈이 놀아서 손해였어요</li>
+      <li>월중에 급락일을 기다렸다 사기. 월초에 그냥 사는 것보다 손해였어요</li>
+      <li>급락한 달 다음 달을 건너뛰기</li>
+    </ul>
+    <h2 style="margin-top:14px">각오할 것</h2>
+    <p class="note" style="margin-top:0" id="brace"></p>
+  </section>
+
+  <p class="foot" id="foot"></p>
+</div>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  function won(v) { v = Math.round(v / 1e4); if (v >= 10000) { var r = v % 10000; return Math.floor(v / 10000) + "억" + (r ? " " + r.toLocaleString("ko-KR") + "만" : ""); } return v.toLocaleString("ko-KR") + "만 원"; }
+  function sg(x, nd) { return (x >= 0 ? "+" : "−") + Math.abs(x).toFixed(nd == null ? 1 : nd) + "%"; }
+  function mname(m) { return parseInt(m.slice(5), 10) + "월"; }
+  function ym(m) { return m.slice(0, 4) + "년 " + parseInt(m.slice(5), 10) + "월"; }
+  function tcls(amt) { return amt >= 3e6 ? "t3" : amt >= 2e6 ? "t2" : amt >= 1e6 ? "t1" : "t0"; }
+  function tcol(ret) { return ret <= -30 ? css("--t3") : ret <= -20 ? css("--t2") : ret <= -13 ? css("--t1") : (ret >= 0 ? css("--up") : css("--ink3")); }
+  var NS = "http://www.w3.org/2000/svg";
+  function el(t, a, x) { var e = document.createElementNS(NS, t); for (var k in a) e.setAttribute(k, a[k]); if (x != null) e.textContent = x; return e; }
+  function clear(s) { while (s.firstChild) s.removeChild(s.firstChild); }
+  var D = null, barN = 24;
+
+  fetch("data.json?t=" + Date.now()).then(function (r) { return r.json(); }).then(function (d) { D = d; render(); })
+    .catch(function (e) { $("fresh").innerHTML = '<span class="err">자료를 못 불러왔어요. 새로고침해 주세요</span>'; });
+
+  function nextMonth(m) { var y = +m.slice(0, 4), mo = +m.slice(5); return mo === 12 ? (y + 1) + "-01" : y + "-" + (mo < 9 ? "0" : "") + (mo + 1); }
+
+  function render() {
+    var d = D, nb = d.next_buy;
+    $("fresh").textContent = "QLD 마지막 가격 " + d.last_date.slice(5).replace("-", "/") + " $" + d.last_close.toFixed(2) + (d.live ? " (미국 장중, 마감 전)" : " (종가)") + " · 매일 자동 갱신";
+    // 맨 위
+    var h = "";
+    if (d.cur_month) {
+      var after = nextMonth(d.cur_month), mt = d.mtd, preview = 0;
+      d.rule.tiers.forEach(function (t) { if (!preview && mt <= t.thr) preview = t.amt; });
+      h += '<div class="lbl">' + mname(nb.month) + "에 산 것 (" + mname(d.last_done.m) + " " + sg(d.last_done.ret) + ")</div>" +
+        '<div class="why"><b class="num">' + won(nb.total) + "</b>" + (nb.extra ? ' <span class="pill ' + tcls(nb.extra) + '">추가 ' + won(nb.extra) + "</span>" : " · 추가 없음") + "</div>" +
+        '<div class="lbl" style="margin-top:14px">' + mname(after) + "에 살 것 · 미리보기</div>" +
+        '<div class="amt">' + won(nb.base + preview).replace(" 원", "") + "<small>원 (지금 그대로 끝나면)</small></div>" +
+        '<div class="why">' + mname(d.cur_month) + "이 지금까지 <b class=num>" + sg(mt, 2) + "</b>" + (d.live ? "(장중)" : "") + ". " + mname(d.cur_month) + " 마지막 종가로 정해져요.</div>";
+      var nextT = d.trig.slice().reverse().filter(function (t) { return d.last_close > t.px; })[0];
+      if (nextT) h += '<div class="why" style="margin-top:6px">→ ' + mname(d.cur_month) + " 마지막 종가가 <b class=num>$" + nextT.px.toFixed(2) + "</b> 이하로 끝나면 <b>" + won(nb.base + nextT.amt) + "</b> (지금 $" + d.last_close.toFixed(2) + ", $" + (d.last_close - nextT.px).toFixed(2) + " 차이)</div>";
+    } else {
+      h += '<div class="lbl">' + ym(nb.month) + " 첫 거래일에 살 것</div>" +
+        '<div class="amt">' + won(nb.total).replace(" 원", "") + "<small>원</small></div>" +
+        '<div class="why">' + mname(d.last_done.m) + " 등락 <b class=num>" + sg(d.last_done.ret) + "</b> → " + (nb.extra ? '<span class="pill ' + tcls(nb.extra) + '">' + nb.stage + " 추가 " + won(nb.extra) + "</span>" : '<span class="pill t0">평소대로</span>') + "</div>" +
+        '<div class="split"><div><b>' + won(nb.base) + "</b><span>기본 적립 (무조건)</span></div><div><b>" + (nb.extra ? won(nb.extra) : "0원") + "</b><span>여유자금 추가</span></div></div>";
+    }
+    $("hero").innerHTML = h;
+    gauge(); bars(); sigs(); years(); bt();
+    var wb = d.bt.reduce(function (a, b) { return b.mdd < a.mdd ? b : a; });
+    $("brace").textContent = "계좌가 고점보다 크게 내려가는 때가 와요. 다시 계산해 보면 월말 기준 고점 대비 가장 깊었던 게 " + wb.mdd.toFixed(0) + "%(" + wb.y + "년 시작 계좌, " + ym(wb.mdd_m) + ")예요. 장중엔 더 깊어요. 그때 팔면 전부 무의미해져요. 가장 많이 사야 하는 달이 가장 무서운 달이에요.";
+    $("foot").textContent = "자료: 야후 QLD 일봉 종가(달의 마지막 거래일 종가끼리 비교, 월초 알림과 같은 계산) · 갱신 " + d.built + " · 미국 장 마감 뒤(한국 아침 6시 반)와 장중 두 번 자동으로 다시 계산해요.";
+  }
+
+  function gauge() {
+    var d = D, svg = $("gauge"); clear(svg);
+    var W = 1000, H = 170, l = 30, r = 30, lo = -40, hi = 15;
+    var x = function (v) { return l + (W - l - r) * (hi - Math.max(lo, Math.min(hi, v))) / (hi - lo); };
+    var zones = [[hi, -13, css("--soft")], [-13, -20, css("--t1")], [-20, -30, css("--t2")], [-30, lo, css("--t3")]];
+    zones.forEach(function (z, i) { svg.appendChild(el("rect", { x: x(z[0]), y: 60, width: x(z[1]) - x(z[0]), height: 34, fill: z[2], opacity: i ? 0.85 : 1, rx: i === 0 ? 8 : 0 })); });
+    [0, -13, -20, -30].forEach(function (v) { svg.appendChild(el("line", { x1: x(v), x2: x(v), y1: 52, y2: 102, stroke: css("--ink"), "stroke-width": v === 0 ? 1.5 : 2.5 }));
+      svg.appendChild(el("text", { x: x(v), y: 126, "text-anchor": "middle", "font-size": 24, fill: css("--ink2"), "font-family": "IBM Plex Mono, monospace" }, (v ? "−" + Math.abs(v) : "0") + "%")); });
+    [["추가 없음", (hi + -13) / 2], ["+100만", -16.5], ["+200만", -25], ["+300만", -35]].forEach(function (z) {
+      svg.appendChild(el("text", { x: x(z[1]), y: 160, "text-anchor": "middle", "font-size": 22, fill: css("--ink2") }, z[0])); });
+    var v = d.cur_month ? d.mtd : d.last_done.ret, X = x(v);
+    svg.appendChild(el("path", { d: "M" + (X - 13) + " 22L" + (X + 13) + " 22L" + X + " 50Z", fill: css("--ink") }));
+    svg.appendChild(el("text", { x: X, y: 16, "text-anchor": "middle", "font-size": 24, "font-weight": 600, fill: css("--ink"), "font-family": "IBM Plex Mono, monospace" }, (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2) + "%"));
+    if (d.cur_month) {
+      $("gTitle").textContent = mname(d.cur_month) + " 지금까지 (" + mname(d.last_done.m) + " 말 $" + d.prev_close.toFixed(2) + " 대비)";
+      $("trig").innerHTML = d.trig.slice().reverse().map(function (t) {
+        var hit = d.last_close <= t.px;
+        return '<div><span class="pill ' + tcls(t.amt) + '">' + t.stage + "</span><span>" + mname(d.cur_month) + " 마지막 종가가 <b class=num>$" + t.px.toFixed(2) + "</b> 이하면 " + mname(nextMonth(d.cur_month)) + "에 +" + won(t.amt) + "</span><span class=num style='color:var(--ink3)'>" + (hit ? "지금 해당" : "$" + (d.last_close - t.px).toFixed(2) + " 위") + "</span></div>"; }).join("");
+      $("gNote").textContent = "기준선 가격 = " + mname(d.last_done.m) + " 마지막 종가 $" + d.prev_close.toFixed(2) + " × (1 − 13·20·30%). 월말 하루 전 이 숫자 근처면 마지막 종가에 따라 갈려요.";
+    } else {
+      $("gTitle").textContent = mname(d.last_done.m) + " 최종 등락";
+      $("trig").innerHTML = "";
+      $("gNote").textContent = "다음 달이 시작되면 새 기준선 가격이 여기에 나와요.";
+    }
+  }
+
+  function bars() {
+    var d = D, svg = $("bars"); clear(svg);
+    var hs = barN ? d.hist.slice(-barN) : d.hist, W = 1000, H = 300, l = 54, r = 10, t = 14, b = 34;
+    var vals = hs.map(function (h) { return h.ret; }), lo = Math.min(-35, Math.min.apply(null, vals)), hi = Math.max(20, Math.max.apply(null, vals));
+    var y = function (v) { return t + (H - t - b) * (hi - v) / (hi - lo); }, bw = (W - l - r) / hs.length;
+    [hi, 0, -13, -30, lo].forEach(function (v) { if (v < lo || v > hi) return; svg.appendChild(el("line", { x1: l, x2: W - r, y1: y(v), y2: y(v), stroke: v === -13 ? css("--t1") : css("--line"), "stroke-dasharray": v === -13 ? "6 4" : "none", "stroke-width": v === 0 ? 1.5 : 1 }));
+      svg.appendChild(el("text", { x: l - 6, y: y(v) + 6, "text-anchor": "end", "font-size": 17, fill: css("--ink3"), "font-family": "IBM Plex Mono, monospace" }, Math.round(v) + "%")); });
+    hs.forEach(function (h, i) { var x0 = l + i * bw + bw * 0.12, w = Math.max(1, bw * 0.76);
+      svg.appendChild(el("rect", { x: x0, y: Math.min(y(0), y(h.ret)), width: w, height: Math.max(1, Math.abs(y(h.ret) - y(0))), fill: tcol(h.ret), opacity: h.done ? 1 : 0.45, rx: barN ? 3 : 0 })); });
+    var step = barN ? 3 : 24;
+    hs.forEach(function (h, i) { if (i % step === 0) svg.appendChild(el("text", { x: l + (i + 0.5) * bw, y: H - 10, "text-anchor": "middle", "font-size": 17, fill: css("--ink3"), "font-family": "IBM Plex Mono, monospace" }, barN ? h.m.slice(2).replace("-", ".") : h.m.slice(0, 4))); });
+    var hit = el("rect", { x: l, y: 0, width: W - l - r, height: H, fill: "transparent" });
+    function pick(ev) { var bb = svg.getBoundingClientRect(); var i = Math.floor(((ev.clientX - bb.left) / bb.width * W - l) / bw); i = Math.max(0, Math.min(hs.length - 1, i)); var h = hs[i];
+      $("btip").innerHTML = "<b>" + ym(h.m) + "</b> " + sg(h.ret) + (h.done ? "" : " (진행 중)") + " · 종가 $" + h.close.toFixed(2) + (h.extra ? " → " + mname(nextMonth(h.m)) + "에 +" + won(h.extra) : ""); }
+    hit.addEventListener("pointermove", pick); hit.addEventListener("click", pick); svg.appendChild(hit);
+  }
+  $("tabs").addEventListener("click", function (e) { var b = e.target.closest("button"); if (!b) return; barN = +b.dataset.n;
+    Array.prototype.forEach.call($("tabs").children, function (c) { c.setAttribute("aria-pressed", c === b ? "true" : "false"); }); bars(); });
+
+  function sigs() {
+    var s = D.signals.slice().reverse(), ny = (+D.last_date.slice(0, 4)) - 2007 + 1, sy = Object.keys(D.by_year).length;
+    $("sigNote").textContent = "QLD 상장(2006-06) 이후 " + s.length + "번. 2007년부터 " + ny + "년 중 추가 매수가 있었던 해는 " + sy + "년이고, 폭락한 해엔 몇 달씩 몰려요(2008년 " + D.signals.filter(function (x) { return x.buy.slice(0, 4) === "2008"; }).length + "번).";
+    $("sigs").innerHTML = s.map(function (x) { return "<div><span class=num>" + x.buy.slice(0, 4) + "." + x.buy.slice(5) + "</span><span>" + mname(x.signal) + " " + sg(x.ret) + "</span><span class='pill " + tcls(x.extra) + "'>+" + won(x.extra) + "</span></div>"; }).join("");
+  }
+
+  function years() {
+    var d = D, svg = $("years"); clear(svg);
+    var y0 = 2007, y1 = +d.last_date.slice(0, 4), W = 1000, H = 220, l = 54, r = 10, t = 14, b = 34, n = y1 - y0 + 1, bw = (W - l - r) / n;
+    var mx = Math.max.apply(null, Object.keys(d.by_year).map(function (k) { return d.by_year[k]; }).concat([3e6]));
+    var y = function (v) { return t + (H - t - b) * (1 - v / mx); };
+    [0, mx / 2, mx].forEach(function (v) { svg.appendChild(el("line", { x1: l, x2: W - r, y1: y(v), y2: y(v), stroke: css("--line") }));
+      svg.appendChild(el("text", { x: l - 6, y: y(v) + 6, "text-anchor": "end", "font-size": 17, fill: css("--ink3"), "font-family": "IBM Plex Mono, monospace" }, Math.round(v / 1e4) + "만")); });
+    for (var k = 0; k < n; k++) { var yr = y0 + k, v = d.by_year[String(yr)] || 0;
+      if (v) svg.appendChild(el("rect", { x: l + k * bw + bw * 0.15, y: y(v), width: bw * 0.7, height: y(0) - y(v), fill: css("--t2"), rx: 3 }));
+      if (yr % 2 === 0) svg.appendChild(el("text", { x: l + (k + 0.5) * bw, y: H - 10, "text-anchor": "middle", "font-size": 16, fill: css("--ink3"), "font-family": "IBM Plex Mono, monospace" }, String(yr).slice(2))); }
+    var ys = Object.keys(d.by_year), zero = n - ys.length, max = ys.reduce(function (a, k) { return d.by_year[k] > d.by_year[a] ? k : a; }, ys[0]);
+    $("yNote").textContent = n + "년 중 " + zero + "년은 0원이에요. 가장 많이 나간 해는 " + max + "년 " + won(d.by_year[max]) + ". 여유자금은 이만큼을 꺼낼 수 있게 두면 돼요.";
+  }
+
+  function bt() {
+    var d = D, B = d.bt, svg = $("bt"); clear(svg);
+    var W = 1000, H = 300, l = 54, r = 10, t = 14, b = 34, n = B.length, bw = (W - l - r) / n;
+    var vals = B.map(function (x) { return x.vs_base; }).concat(B.map(function (x) { return x.vs_same; })), hi = Math.ceil(Math.max.apply(null, vals) / 10) * 10, lo = Math.min(-10, Math.floor(Math.min.apply(null, vals) / 10) * 10);
+    var y = function (v) { return t + (H - t - b) * (hi - v) / (hi - lo); };
+    for (var v = lo; v <= hi; v += 20) { svg.appendChild(el("line", { x1: l, x2: W - r, y1: y(v), y2: y(v), stroke: v === 0 ? css("--ink3") : css("--line") }));
+      svg.appendChild(el("text", { x: l - 6, y: y(v) + 6, "text-anchor": "end", "font-size": 17, fill: css("--ink3"), "font-family": "IBM Plex Mono, monospace" }, v + "%")); }
+    B.forEach(function (x, i) { var cx = l + (i + 0.5) * bw, w = bw * 0.34;
+      svg.appendChild(el("rect", { x: cx - w - 1, y: Math.min(y(0), y(x.vs_base)), width: w, height: Math.abs(y(x.vs_base) - y(0)), fill: css("--ink3"), rx: 2 }));
+      svg.appendChild(el("rect", { x: cx + 1, y: Math.min(y(0), y(x.vs_same)), width: w, height: Math.max(1, Math.abs(y(x.vs_same) - y(0))), fill: x.vs_same >= 0 ? css("--leaf") : css("--down"), rx: 2 }));
+      if (i % 3 === 0) svg.appendChild(el("text", { x: cx, y: H - 10, "text-anchor": "middle", "font-size": 16, fill: css("--ink3"), "font-family": "IBM Plex Mono, monospace" }, String(x.y).slice(2))); });
+    var hit = el("rect", { x: l, y: 0, width: W - l - r, height: H, fill: "transparent" });
+    function pick(ev) { var bb = svg.getBoundingClientRect(); var i = Math.floor(((ev.clientX - bb.left) / bb.width * W - l) / bw); i = Math.max(0, Math.min(n - 1, i)); var x = B[i];
+      $("bttip").innerHTML = "<b>" + x.y + "년 1월 시작</b>: 넣은 돈 " + won(x.paid) + " → 지금 " + won(x.a) + " · 30만만 넣었으면 " + won(x.b) + "(넣은 돈 " + won(x.base_paid) + ") · 같은 돈을 매달 고르게 넣었으면 " + won(x.c); }
+    hit.addEventListener("pointermove", pick); hit.addEventListener("click", pick); svg.appendChild(hit);
+    $("bttip").textContent = "회색 = 30만 원만 넣은 것보다 · 초록/빨강 = 같은 돈을 매달 고르게 넣은 것보다. 막대를 누르면 금액이 나와요";
+    function med(a) { var s = a.slice().sort(function (p, q) { return p - q; }); return s[Math.floor(s.length / 2)]; }
+    var vb = B.map(function (x) { return x.vs_base; }), vs = B.map(function (x) { return x.vs_same; }), win = vs.filter(function (v) { return v > 0; }).length;
+    $("btText").innerHTML = [
+      "<b>30만 원만 넣은 것보다</b> " + n + "개 시작 연도 전부 더 많아요(가운데 " + sg(med(vb)) + "). 다만 여유자금을 더 넣었으니 커지는 게 당연한 비교예요.",
+      "<b>같은 돈을 매달 고르게 넣은 것과 비교하면</b> " + n + "번 중 " + win + "번 이기고, 가운데 " + sg(med(vs)) + "예요. 2007·2008년처럼 큰 폭락을 앞두고 시작하면 크게 이기고, 2009~2014년처럼 폭락이 늦게 오면 조금 져요.",
+      "그래서 이 방법의 힘은 «타이밍을 맞히는 것»보다 «무서운 달에 손을 멈추지 않고 더 넣는 습관»에 있어요."
+    ].map(function (s) { return "<li>" + s + "</li>"; }).join("");
+  }
+  if (window.matchMedia) { var mq = window.matchMedia("(prefers-color-scheme: dark)"); if (mq.addEventListener) mq.addEventListener("change", function () { if (D) render(); }); }
+})();
+</script>
+</body>
+</html>
