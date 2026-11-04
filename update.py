@@ -45,6 +45,71 @@ def daily():
     return sorted(dedup.items()), meta
 
 
+def irr_year(paid, final):
+    """매달 초 paid[k]를 넣고 마지막 달 말에 final이면 연 수익률(적금 이자처럼 돈이 들어간 시점마다 따로 굴린 값). 이분법"""
+    n = len(paid)
+
+    def gap(r):
+        return sum(p * (1 + r) ** (n - k) for k, p in enumerate(paid)) - final
+    lo, hi = -0.2, 0.2
+    if gap(lo) > 0 or gap(hi) < 0:
+        return None
+    for _ in range(80):
+        mid = (lo + hi) / 2
+        if gap(mid) > 0:
+            hi = mid
+        else:
+            lo = mid
+    return ((1 + (lo + hi) / 2) ** 12 - 1) * 100
+
+
+def pct(xs, q):
+    s = sorted(xs)
+    return s[min(len(s) - 1, int(round(q * (len(s) - 1))))]
+
+
+def forward(months, done_months, mend, first_close, ret_of, years=(3, 5, 10)):   # 15년은 겹치지 않는 표본이 1개라 뺐다
+    """앞으로 기대: 규칙을 «과거의 모든 시작 달»에서 N년 돌린 결과 분포(QLD 실제 가격, 가정 없음).
+    시작 달마다 매달 첫 거래일 종가에 30만 + 지난달 등락 추가분을 사고, N년째 마지막 달 종가로 평가"""
+    out = []
+    for N in years:
+        L = 12 * N
+        rows = []
+        for s in range(1, len(done_months) - L + 1):           # 상장 달(2006-06)은 반달이라 다음 달부터
+            ms = done_months[s:s + L]
+            sh = paid = 0.0
+            paid_list, worst = [], 0.0
+            for m in ms:
+                yy, mm = map(int, m.split("-"))
+                prev = "%04d-%02d" % (yy - (mm == 1), 12 if mm == 1 else mm - 1)
+                amt = BASE + (tier(ret_of[prev])[0] if prev in ret_of else 0)
+                sh += amt / first_close[m]
+                paid += amt
+                paid_list.append(amt)
+                worst = min(worst, sh * mend[m][1] / paid - 1)
+            val = sh * mend[ms[-1]][1]
+            rows.append(dict(s=ms[0], e=ms[-1], paid=round(paid), val=round(val), x=round(val / paid, 3),
+                             irr=irr_year(paid_list, val), worst=round(worst * 100, 1)))
+        if not rows:
+            continue
+        xs = [r["x"] for r in rows]
+        lo = min(rows, key=lambda r: r["x"])
+        hi = max(rows, key=lambda r: r["x"])
+        med_row = sorted(rows, key=lambda r: r["x"])[len(rows) // 2]
+        irrs = [r["irr"] for r in rows if r["irr"] is not None]
+        out.append(dict(
+            n=N, cnt=len(rows), first=rows[0]["s"], last=rows[-1]["s"], base_paid=BASE * L,
+            paid_med=round(pct([r["paid"] for r in rows], 0.5)), paid_max=max(r["paid"] for r in rows),
+            x10=round(pct(xs, 0.1), 2), x50=round(pct(xs, 0.5), 2), x90=round(pct(xs, 0.9), 2),
+            irr10=round(pct(irrs, 0.1), 1), irr50=round(pct(irrs, 0.5), 1), irr90=round(pct(irrs, 0.9), 1),
+            below=round(100.0 * sum(r["x"] < 1 for r in rows) / len(rows), 1),
+            worst_med=round(pct([r["worst"] for r in rows], 0.5), 1), worst_min=min(r["worst"] for r in rows),
+            lo=lo, hi=hi, med=med_row,
+            pts=[[r["s"], r["x"], r["paid"], r["val"]] for r in rows],
+        ))
+    return out
+
+
 def main():
     rows, meta = daily()
     now_utc = datetime.now(timezone.utc)
@@ -126,8 +191,14 @@ def main():
             worst = min(worst, v / paid - 1)
         bt.append(dict(y=sy, paid=round(paid_a), base_paid=BASE * len(flows), a=round(sh_a * px_end), b=round(sh_b * px_end), c=round(sh_c * px_end),
                        vs_base=round((sh_a / sh_b - 1) * 100, 1), vs_same=round((sh_a / sh_c - 1) * 100, 1), mdd=round(mdd * 100, 1), mdd_m=mdd_m, worst=round(worst * 100, 1)))
+    done_months = [h["m"] for h in hist if h["done"]]
+    fwd = forward(months, [months[0]] + done_months, mend, first_close, ret_of)
+    m0, m1 = months[1], done_months[-1]                              # 상장 다음 달 첫 거래일 → 마지막 끝난 달 말
+    yrs = (int(m1[:4]) * 12 + int(m1[5:]) - int(m0[:4]) * 12 - int(m0[5:]) + 1) / 12.0
+    qld_cagr = ((mend[m1][1] / first_close[m0]) ** (1 / yrs) - 1) * 100
     out = dict(
         built=now_utc.strftime("%Y-%m-%d %H:%M UTC"), last_date=last_d, last_close=round(last_c, 2), live=live,
+        fwd=fwd, qld_cagr=round(qld_cagr, 1), qld_span=[m0, m1],
         rule=dict(base=BASE, tiers=[dict(thr=t, amt=a, stage=n) for t, a, n in TIERS]),
         cur_month=cur_m if cur else None, mtd=mtd, prev_close=round(mend[months[-2]][1], 2) if cur else None, month_done=month_done,
         trig=[dict(stage=n, amt=a, px=round(mend[months[-2]][1] * (1 + t / 100), 2)) for t, a, n in TIERS] if cur else None,
@@ -140,6 +211,15 @@ def main():
           % (last_d, last_c, " (장중)" if live else "", last_done["m"], last_done["ret"], nxt, BASE + buy_extra, buy_extra, cur_m if cur else "끝남",
              ("%+.2f%%" % mtd) if mtd is not None else "-"))
     print("신호 %d번 · 연도별 추가 %s" % (len(signals), by_year))
+    print("QLD %s~%s 연 %.1f%%" % (m0, m1, qld_cagr))
+    for f in fwd:
+        print("  %d년 창 %d개(%s~%s 시작) · 넣은 돈 가운데 %.0f만(기본 %.0f만, 최대 %.0f만) · 배수 하위10%% %.2f / 가운데 %.2f / 상위10%% %.2f · 연 %.1f / %.1f / %.1f%% · 원금 밑 끝 %.1f%% · 중간 최악 가운데 %.0f%% 최악 %.0f%%"
+              % (f["n"], f["cnt"], f["first"], f["last"], f["paid_med"] / 1e4, f["base_paid"] / 1e4, f["paid_max"] / 1e4, f["x10"], f["x50"], f["x90"],
+                 f["irr10"], f["irr50"], f["irr90"], f["below"], f["worst_med"], f["worst_min"]))
+        for k in ("lo", "med", "hi"):
+            r = f[k]
+            print("    %s %s~%s 넣은 %.0f만 → %.0f만 (%.2f배, 연 %s, 중간 최악 %.0f%%)" % (k, r["s"], r["e"], r["paid"] / 1e4, r["val"] / 1e4, r["x"],
+                                                                         "-" if r["irr"] is None else "%.1f%%" % r["irr"], r["worst"]))
     for b in bt:
         print("  %d 시작: 넣은 돈 %.0f만(기본만 %.0f만) · 규칙 %.0f만 · 기본만 %.0f만 · 같은 돈 고르게 %.0f만 · 기본만 대비 %+.1f%% · 같은 돈 대비 %+.1f%% · 계좌 최악 낙폭 %.0f%% · 원금 대비 최악 %.0f%%"
               % (b["y"], b["paid"] / 1e4, b["base_paid"] / 1e4, b["a"] / 1e4, b["b"] / 1e4, b["c"] / 1e4, b["vs_base"], b["vs_same"], b["mdd"], b["worst"]))
